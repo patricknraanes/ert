@@ -1864,6 +1864,10 @@ bool enkf_main_run_simple_step(enkf_main_type * enkf_main , bool_vector_type * i
 
 void enkf_main_run_smoother(enkf_main_type * enkf_main , const char * target_fs_name , bool_vector_type * iactive , int iter , bool rerun) {
   analysis_config_type * analysis_config = enkf_main_get_analysis_config( enkf_main );
+
+	fprintf(stdout,"Current analysis module:%s",analysis_config_get_active_module_name( analysis_config ));
+	fprintf(stderr,"Current analysis module:%s",analysis_config_get_active_module_name( analysis_config ));
+
   if (!analysis_config_get_module_option( analysis_config , ANALYSIS_ITERABLE)) {
     if (enkf_main_run_simple_step( enkf_main , iactive , INIT_CONDITIONAL, iter))
       enkf_main_run_post_workflow(enkf_main);
