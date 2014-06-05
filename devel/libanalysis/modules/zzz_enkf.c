@@ -48,10 +48,10 @@ typedef struct zzz_enkf_data_struct zzz_enkf_data_type;
   you have repeated calls to both of these functions the end result
   might be a surprise.  
 */
-#define INVALID_SUBSPACE_DIMENSION  -1
-#define INVALID_TRUNCATION          -1
-#define DEFAULT_SUBSPACE_DIMENSION  INVALID_SUBSPACE_DIMENSION
-#define DEFAULT_USE_PRIOR           true
+#define INVALID_SUBSPACE_DIMENSION     -1
+#define INVALID_TRUNCATION             -1
+#define DEFAULT_SUBSPACE_DIMENSION     INVALID_SUBSPACE_DIMENSION
+#define DEFAULT_USE_PRIOR              true
 #define DEFAULT_LAMBDA_INCREASE_FACTOR 4
 #define DEFAULT_LAMBDA_REDUCE_FACTOR   0.1
 #define DEFAULT_LAMBDA0                -1
@@ -129,6 +129,10 @@ static UTIL_SAFE_CAST_FUNCTION( zzz_enkf_data , RML_ENKF_TYPE_ID )
 static UTIL_SAFE_CAST_FUNCTION_CONST( zzz_enkf_data , RML_ENKF_TYPE_ID )
 
 
+
+
+
+/** GET/SET Settings **/
 double zzz_enkf_get_truncation( zzz_enkf_data_type * data ) {
   return data->truncation;
 }
@@ -159,7 +163,6 @@ double zzz_enkf_get_lambda_min( const zzz_enkf_data_type * data ) {
   return data->lambda_min;
 }
 
-
 void zzz_enkf_set_lambda_increase_factor( zzz_enkf_data_type * data , double increase_factor) {
   data->lambda_increase_factor = increase_factor;
 }
@@ -188,7 +191,6 @@ bool zzz_enkf_get_use_prior( const zzz_enkf_data_type * data ) {
   return data->use_prior;
 }
 
-
 void zzz_enkf_set_use_prior( zzz_enkf_data_type * data , bool use_prior) {
   data->use_prior = use_prior;
 }
@@ -203,16 +205,17 @@ void zzz_enkf_set_subspace_dimension( zzz_enkf_data_type * data , int subspace_d
     data->truncation = INVALID_TRUNCATION;
 }
 
-
 void zzz_enkf_set_iteration_nr( zzz_enkf_data_type * data , int iteration_nr) {
   data->iteration_nr = iteration_nr;
 }
-
 
 int zzz_enkf_get_iteration_nr( const zzz_enkf_data_type * data ) {
   return data->iteration_nr;
 }
 
+
+
+/** Log related stuff **/
 void zzz_enkf_set_log_file( zzz_enkf_data_type * data , const char * log_file ) {
   data->log_file = util_realloc_string_copy( data->log_file , log_file );
 }
@@ -220,7 +223,6 @@ void zzz_enkf_set_log_file( zzz_enkf_data_type * data , const char * log_file ) 
 const char * zzz_enkf_get_log_file( const zzz_enkf_data_type * data) {
   return data->log_file;
 }
-
 
 void zzz_enkf_log_line( zzz_enkf_data_type * data , const char * fmt , ...) {
   if (data->log_stream) {
@@ -231,7 +233,39 @@ void zzz_enkf_log_line( zzz_enkf_data_type * data , const char * fmt , ...) {
   }
 }
 
+static void zzz_enkf_write_log_header( zzz_enkf_data_type * data ) {
+  if (data->log_stream) {
+    const char * column1 = "\"Iteration Number\"";
+    const char * column2 = "\"Lambda Value\"";
+    const char * column3 = "\"Current Object Function Value\"";
+    const char * column4 = "\"Previous Object Function Value\"";
+    const char * column5 = "\"Current Standard Deviation\"";
 
+    if (data->log_stream) {
+      zzz_enkf_log_line(data, "%-23s %-19s %-36s %-37s %-33s\n", column1, column2, column3, column4, column5);
+    }
+  }
+}
+
+static void zzz_enkf_open_log_file( zzz_enkf_data_type * data ) {
+  data->log_stream = NULL;
+  if (data->log_file) {
+    if ( data->iteration_nr == 0) {
+      if (data->clear_log){
+        data->log_stream = util_mkdir_fopen( data->log_file , "w");
+        zzz_enkf_write_log_header(data);
+      }
+      else
+        data->log_stream = util_mkdir_fopen( data->log_file , "a");
+    } else
+      data->log_stream = util_fopen( data->log_file , "a");
+  }
+}
+
+
+
+
+/** Alloc / Free **/
 void * zzz_enkf_data_alloc( rng_type * rng) {
   zzz_enkf_data_type * data = util_malloc( sizeof * data);
   UTIL_TYPE_ID_INIT( data , RML_ENKF_TYPE_ID );
@@ -259,7 +293,6 @@ void * zzz_enkf_data_alloc( rng_type * rng) {
   return data;
 }
 
-
 void zzz_enkf_data_free( void * arg ) { 
   zzz_enkf_data_type * data = zzz_enkf_data_safe_cast( arg );
 
@@ -273,6 +306,9 @@ void zzz_enkf_data_free( void * arg ) {
 }
 
 
+
+
+/** Actual intersting stuff **/
 static void zzz_enkf_init1__( zzz_enkf_data_type * data) {
   
 
@@ -305,8 +341,6 @@ static void zzz_enkf_init1__( zzz_enkf_data_type * data) {
   free(Wm);
 }
 
-
-
 void zzz_enkf_init_Csc(zzz_enkf_data_type * data){
   int state_size = matrix_get_rows( data->active_prior );
   int ens_size   = matrix_get_columns( data->active_prior );
@@ -324,19 +358,7 @@ void zzz_enkf_init_Csc(zzz_enkf_data_type * data){
 }
 
 
-
-
-
-
-static void zzz_enkf_initA__(zzz_enkf_data_type * data, 
-                             matrix_type * A ,
-                             matrix_type * S , 
-                             matrix_type * Cd , 
-                             matrix_type * E , 
-                             matrix_type * D ,
-                             matrix_type * Udr,
-                             double * Wdr,
-                             matrix_type * VdTr) {
+static void zzz_enkf_initA__(zzz_enkf_data_type * data,  matrix_type * A , matrix_type * S ,  matrix_type * Cd ,  matrix_type * E ,  matrix_type * D , matrix_type * Udr, double * Wdr, matrix_type * VdTr) {
 
   int ens_size      = matrix_get_columns( S );
   double nsc        = 1/sqrt(ens_size-1);
@@ -387,13 +409,7 @@ static void zzz_enkf_initA__(zzz_enkf_data_type * data,
   }
 }
 
-
-
-void zzz_enkf_init2__( zzz_enkf_data_type * data,
-                       matrix_type *A,
-                       matrix_type *Acopy,
-                       double * Wdr,
-                       matrix_type * VdTr) {
+void zzz_enkf_init2__( zzz_enkf_data_type * data, matrix_type *A, matrix_type *Acopy, double * Wdr, matrix_type * VdTr) {
 
 
   int state_size   = matrix_get_rows( Acopy );
@@ -445,14 +461,7 @@ void zzz_enkf_init2__( zzz_enkf_data_type * data,
 }
 
 
-static void zzz_enkf_updateA_iter0(zzz_enkf_data_type * data,
-                                          matrix_type * A , 
-                                          matrix_type * S , 
-                                          matrix_type * R , 
-                                          matrix_type * dObs , 
-                                          matrix_type * E , 
-                                          matrix_type * D,
-                                          matrix_type * Cd) {
+static void zzz_enkf_updateA_iter0(zzz_enkf_data_type * data, matrix_type * A ,  matrix_type * S ,  matrix_type * R ,  matrix_type * dObs ,  matrix_type * E ,  matrix_type * D, matrix_type * Cd) {
         
   matrix_type * Skm = matrix_alloc(matrix_get_columns(D),matrix_get_columns(D));
   int ens_size      = matrix_get_columns( S );
@@ -493,44 +502,7 @@ static void zzz_enkf_updateA_iter0(zzz_enkf_data_type * data,
   free( Wd );
 }
 
-
-static void zzz_enkf_write_log_header( zzz_enkf_data_type * data ) {
-  if (data->log_stream) {
-    const char * column1 = "\"Iteration Number\"";
-    const char * column2 = "\"Lambda Value\"";
-    const char * column3 = "\"Current Object Function Value\"";
-    const char * column4 = "\"Previous Object Function Value\"";
-    const char * column5 = "\"Current Standard Deviation\"";
-
-    if (data->log_stream) {
-      zzz_enkf_log_line(data, "%-23s %-19s %-36s %-37s %-33s\n", column1, column2, column3, column4, column5);
-    }
-  }
-}
-
-static void zzz_enkf_open_log_file( zzz_enkf_data_type * data )
-{
-  data->log_stream = NULL;
-  if (data->log_file) {
-    if ( data->iteration_nr == 0) {
-      if (data->clear_log){
-        data->log_stream = util_mkdir_fopen( data->log_file , "w");
-        zzz_enkf_write_log_header(data);
-      }
-      else
-        data->log_stream = util_mkdir_fopen( data->log_file , "a");
-    } else
-      data->log_stream = util_fopen( data->log_file , "a");
-  }
-}
-
-void zzz_enkf_updateA(void * module_data , 
-                      matrix_type * A , 
-                      matrix_type * S , 
-                      matrix_type * R , 
-                      matrix_type * dObs , 
-                      matrix_type * E , 
-                      matrix_type * D) {
+void zzz_enkf_updateA(void * module_data ,  matrix_type * A ,  matrix_type * S ,  matrix_type * R ,  matrix_type * dObs ,  matrix_type * E ,  matrix_type * D) {
 
 
   zzz_enkf_data_type * data = zzz_enkf_data_safe_cast( module_data );
@@ -621,15 +593,7 @@ void zzz_enkf_updateA(void * module_data ,
 }
 
 
-
-
-void zzz_enkf_init_update(void * arg , 
-                                 const bool_vector_type * ens_mask , 
-                                 const matrix_type * S , 
-                                 const matrix_type * R , 
-                                 const matrix_type * dObs , 
-                                 const matrix_type * E , 
-                                 const matrix_type * D ) {
+void zzz_enkf_init_update(void * arg ,  const bool_vector_type * ens_mask ,  const matrix_type * S ,  const matrix_type * R ,  const matrix_type * dObs ,  const matrix_type * E ,  const matrix_type * D ) {
   
   zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast( arg );
   bool_vector_memcpy( module_data->ens_mask , ens_mask );
@@ -637,6 +601,10 @@ void zzz_enkf_init_update(void * arg ,
 
 
 
+
+
+
+/** GET/SET access methods **/
 bool zzz_enkf_set_double( void * arg , const char * var_name , double value) {
   zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast( arg );
   {
@@ -659,7 +627,6 @@ bool zzz_enkf_set_double( void * arg , const char * var_name , double value) {
   }
 }
 
-
 bool zzz_enkf_set_int( void * arg , const char * var_name , int value) {
   zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast( arg );
   {
@@ -675,7 +642,6 @@ bool zzz_enkf_set_int( void * arg , const char * var_name , int value) {
     return name_recognized;
   }
 }
-
 
 bool zzz_enkf_set_bool( void * arg , const char * var_name , bool value) {
   zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast( arg );
@@ -695,7 +661,6 @@ bool zzz_enkf_set_bool( void * arg , const char * var_name , bool value) {
   }
 }
 
-
 bool zzz_enkf_set_string( void * arg , const char * var_name , const char * value) {
   zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast( arg );
   {
@@ -710,7 +675,6 @@ bool zzz_enkf_set_string( void * arg , const char * var_name , const char * valu
   }
 }
 
-
 long zzz_enkf_get_options( void * arg , long flag ) {
   zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast( arg );
   {
@@ -718,37 +682,32 @@ long zzz_enkf_get_options( void * arg , long flag ) {
   }
 }
 
-
-
 bool zzz_enkf_has_var( const void * arg, const char * var_name) {
-  {
-    if (strcmp(var_name , ITER_KEY) == 0)
-      return true;
-    else if (strcmp(var_name , USE_PRIOR_KEY) == 0)
-      return true;
-    else if (strcmp(var_name , LAMBDA_INCREASE_FACTOR_KEY) == 0)
-      return true;
-    else if (strcmp(var_name , LAMBDA_REDUCE_FACTOR_KEY) == 0)
-      return true;
-    else if (strcmp(var_name , LAMBDA0_KEY) == 0)
-      return true;
-    else if (strcmp(var_name , LAMBDA_MIN_KEY) == 0)
-      return true;
-    else if (strcmp(var_name , LAMBDA_RECALCULATE_KEY) == 0)
-      return true;
-    else if (strcmp(var_name , ENKF_TRUNCATION_KEY_) == 0)
-      return true;
-    else if (strcmp(var_name , LOG_FILE_KEY) == 0)
-      return true;
-    else if (strcmp(var_name , CLEAR_LOG_KEY) == 0)
-      return true;
-    else
-      return false;
-  }
+		{
+				if (strcmp(var_name , ITER_KEY) == 0)
+						return true;
+				else if (strcmp(var_name , USE_PRIOR_KEY) == 0)
+						return true;
+				else if (strcmp(var_name , LAMBDA_INCREASE_FACTOR_KEY) == 0)
+						return true;
+				else if (strcmp(var_name , LAMBDA_REDUCE_FACTOR_KEY) == 0)
+						return true;
+				else if (strcmp(var_name , LAMBDA0_KEY) == 0)
+						return true;
+				else if (strcmp(var_name , LAMBDA_MIN_KEY) == 0)
+						return true;
+				else if (strcmp(var_name , LAMBDA_RECALCULATE_KEY) == 0)
+						return true;
+				else if (strcmp(var_name , ENKF_TRUNCATION_KEY_) == 0)
+						return true;
+				else if (strcmp(var_name , LOG_FILE_KEY) == 0)
+						return true;
+				else if (strcmp(var_name , CLEAR_LOG_KEY) == 0)
+						return true;
+				else
+						return false;
+		}
 }
-
-
-
 
 int zzz_enkf_get_int( const void * arg, const char * var_name) {
   const zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast_const( arg );
@@ -760,7 +719,6 @@ int zzz_enkf_get_int( const void * arg, const char * var_name) {
   }
 }
 
-
 void * zzz_enkf_get_ptr( const void * arg , const char * var_name ) {
   const zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast_const( arg );
   {
@@ -771,22 +729,19 @@ void * zzz_enkf_get_ptr( const void * arg , const char * var_name ) {
   }
 }
 
-
 bool zzz_enkf_get_bool( const void * arg, const char * var_name) {
-  const zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast_const( arg );
-  {
-    if (strcmp(var_name , USE_PRIOR_KEY) == 0)
-      return module_data->use_prior;
-    else if (strcmp(var_name , CLEAR_LOG_KEY) == 0) 
-      return module_data->clear_log;
-    else if (strcmp(var_name , LAMBDA_RECALCULATE_KEY) == 0) 
-      return module_data->lambda_recalculate;
-    else
-       return false;
-  }
+		const zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast_const( arg );
+		{
+				if (strcmp(var_name , USE_PRIOR_KEY) == 0)
+						return module_data->use_prior;
+				else if (strcmp(var_name , CLEAR_LOG_KEY) == 0) 
+						return module_data->clear_log;
+				else if (strcmp(var_name , LAMBDA_RECALCULATE_KEY) == 0) 
+						return module_data->lambda_recalculate;
+				else
+						return false;
+		}
 }
-
-
 
 double zzz_enkf_get_double( const void * arg, const char * var_name) {
   const zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast_const( arg );

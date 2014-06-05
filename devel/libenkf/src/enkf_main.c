@@ -1173,7 +1173,12 @@ static void enkf_main_analysis_update( enkf_main_type * enkf_main ,
 
   /*****************************************************************/
   
-  analysis_module_init_update( module , ens_mask , S , R , dObs , E , D );
+	fprintf(stdout,"\n\n***********I***********");
+	fprintf(stdout,"\nS : m: %d, n: %d", matrix_get_rows(S), matrix_get_columns(S));
+	fprintf(stdout,"\nS : %f", matrix_iget_safe(S, matrix_get_rows(S)-1,matrix_get_columns(S)-1));
+
+	analysis_module_init_update( module , ens_mask , S , R , dObs , E , D );
+
   {
     hash_iter_type * dataset_iter = local_ministep_alloc_dataset_iter( ministep );
     enkf_fs_type * src_fs = enkf_main_get_fs( enkf_main );
@@ -1212,9 +1217,14 @@ static void enkf_main_analysis_update( enkf_main_type * enkf_main ,
       double_vector_free( singular_values );
     }
     
-    if (localA == NULL)
-      analysis_module_initX( module , X , NULL , S , R , dObs , E , D );
+    if (localA == NULL){
+				analysis_module_initX( module , X , NULL , S , R , dObs , E , D );
+		}
 
+		fprintf(stdout,"\n\n***********B***********");
+		fprintf(stdout,"X : %f\n", matrix_iget_safe(X, 1,1));
+		fprintf(stdout,"X : %f\n", matrix_iget_safe(X, matrix_get_rows(X)-1,matrix_get_columns(X)-1));
+	  matrix_pretty_print(X , "X" , "%.2f");
 
     while (!hash_iter_is_complete( dataset_iter )) {
       const char * dataset_name = hash_iter_get_next_key( dataset_iter );

@@ -30,19 +30,11 @@
 #include <ert/analysis/enkf_linalg.h>
 
 
-void null_enkf_initX(void * module_data , 
-                    matrix_type * X , 
-                    matrix_type * A , 
-                    matrix_type * S , 
-                    matrix_type * R , 
-                    matrix_type * dObs , 
-                    matrix_type * E , 
-                    matrix_type * D) {
+void null_enkf_initX(void * module_data ,  matrix_type * X ,  matrix_type * A ,  matrix_type * S ,  matrix_type * R ,  matrix_type * dObs ,  matrix_type * E ,  matrix_type * D) {
 
   matrix_diag_set_scalar( X , 1.0 );
 
 }
-
 
 long null_enkf_get_options( void * arg , long flag ) {
   return 0L;
