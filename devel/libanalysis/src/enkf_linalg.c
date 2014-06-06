@@ -700,8 +700,8 @@ double enkf_linalg_data_mismatch(matrix_type *D , matrix_type *R , matrix_type *
 {
   matrix_type * tmp = matrix_alloc (matrix_get_columns(D), matrix_get_columns(R));
   double mismatch;
-  matrix_matmul_with_transpose(tmp, D, R,true, false);
-  matrix_matmul(Sk, tmp, D);
+  matrix_matmul_with_transpose(tmp, D, R,true, false); // tmp = D' * R, i.e. N-by-p
+  matrix_matmul(Sk, tmp, D); // Sk = D' * R * D
   // Calculate the mismatch 
   mismatch = matrix_trace(Sk)/(matrix_get_columns(D));
   

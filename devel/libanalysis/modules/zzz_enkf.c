@@ -371,7 +371,8 @@ static void zzz_enkf_initA__(zzz_enkf_data_type * data,  matrix_type * A , matri
     matrix_matmul(tmp , Cd , S );
     matrix_scale(tmp , nsc);
   
-    // SVD(S)  = Ud * Wd * Vd(T)
+    // SVD(S)  = Ud * Wd * Vd(T), in this case:
+    // SVD(nsc^2*Cd*S)  = Ud * Wd * Vd(T)
     nsign = enkf_linalg_svd_truncation(tmp , data->truncation , -1 , DGESVD_MIN_RETURN  , Wdr , Udr , VdTr);
     matrix_free( tmp );
   }
@@ -503,39 +504,66 @@ static void zzz_enkf_updateA_iter0(zzz_enkf_data_type * data, matrix_type * A , 
 }
 
 void zzz_enkf_updateA(void * module_data ,  matrix_type * A ,  matrix_type * S ,  matrix_type * R ,  matrix_type * dObs ,  matrix_type * E ,  matrix_type * D) {
+// A : ensemble matrix
+// R : Obs error cov inv?
+// S : measured ensemble
+// dObs: observed data
+// E : perturbations for obs
+// D = dObs + E - S : Innovations (wrt pert. obs)
 
-
+  double Sk_new;   // Mismatch
+  double  Std_new; // Std dev(Mismatch)
   zzz_enkf_data_type * data = zzz_enkf_data_safe_cast( module_data );
-  double Sk_new;
-  double  Std_new;
-  int nrobs         = matrix_get_rows( S );
-  int ens_size      = matrix_get_columns( S );
-  double nsc        = 1/sqrt(ens_size-1); 
-  matrix_type * Cd  = matrix_alloc( nrobs, nrobs );
+  int nrobs                 = matrix_get_rows( S );           // Num obs
+  int ens_size              = matrix_get_columns( S );        //
+  double nsc                = 1/sqrt(ens_size-1);             // Scale factor
+  matrix_type * Cd          = matrix_alloc( nrobs, nrobs );   // Cov(E), where E = measurement perturbations?
  
   
-  enkf_linalg_Covariance(Cd ,E ,nsc, nrobs);
-  matrix_inv(Cd);
+  enkf_linalg_Covariance(Cd ,E ,nsc, nrobs); // 
+  matrix_inv(Cd); // In-place inversion
 
   zzz_enkf_open_log_file(data);
 
+	fprintf(stdout, "**********************\n");
+	fprintf(stdout, "Iteration number %d\n", data->iteration_nr);
+
+	matrix_type * SmeanMat = matrix_alloc(nrobs,1);
+	//vector_type * SmeanVec = vector_alloc_NULL_initialized(nrobs);
+
+	int i; 
+	for ( i=0; i < nrobs; i++) {
+		double row_mean = matrix_get_row_sum(S , i) / ens_size;
+    matrix_iset(SmeanMat , i , 0, row_mean );
+		//SmeanVec[i] = row_mean;
+	}
+
+	zzz_enkf_log_line( data , "Here comes the cavalry\n");
+	matrix_pretty_fprint(S , "S mat" , "%4.2f " , data->log_stream);
+	matrix_pretty_fprint(SmeanMat , "Mean mat" , "%4.2f " , data->log_stream);
 
   if (data->iteration_nr == 0) {
+		// ITERATION 0
     zzz_enkf_updateA_iter0(data , A , S , R , dObs , E , D , Cd);
     data->iteration_nr++;
   } else {
-    int nrmin         = util_int_min( ens_size , nrobs); 
-    matrix_type * Ud  = matrix_alloc( nrobs , nrmin    );    /* Left singular vectors.  */
-    matrix_type * VdT = matrix_alloc( nrmin , ens_size );    /* Right singular vectors. */
-    double * Wd       = util_calloc( nrmin , sizeof * Wd ); 
-    matrix_type * Skm = matrix_alloc(matrix_get_columns(D),matrix_get_columns(D));
-    matrix_type * Acopy  = matrix_alloc_copy (A);
-    Sk_new = enkf_linalg_data_mismatch(D,Cd,Skm);  //Calculate the intitial data mismatch term
-    Std_new = matrix_diag_std(Skm,Sk_new);
+		// ITERATION 1,2....
+    int nrmin           = util_int_min( ens_size , nrobs);      // Min(p,N)
+    matrix_type * Ud    = matrix_alloc( nrobs , nrmin    );     // Left singular vectors.  */
+    matrix_type * VdT   = matrix_alloc( nrmin , ens_size );     // Right singular vectors. */
+    double * Wd         = util_calloc( nrmin , sizeof * Wd );   // Singular values, vector
+    matrix_type * Skm   = matrix_alloc(ens_size,ens_size);      // Mismatch
+    matrix_type * Acopy = matrix_alloc_copy (A);                // Copy of A
+    Sk_new              = enkf_linalg_data_mismatch(D,Cd,Skm);  // Skm = D'*inv(Cd)*D; Sk_new = trace(Skm)/N
+    Std_new             = matrix_diag_std(Skm,Sk_new);          // 
     
+		// Lambda = Normalized data mismatch (rounded)
     if (data->lambda_recalculate)
       data->lambda = pow(10 , floor(log10(Sk_new / (2*nrobs))) );
     
+		zzz_enkf_log_line( data , "Prior0 size: %d x %d\n", matrix_get_rows(data->prior0), matrix_get_columns(data->prior0));
+
+		// active_prior = prior0
     zzz_enkf_common_recover_state( data->prior0 , data->active_prior , data->ens_mask );
 
     {
