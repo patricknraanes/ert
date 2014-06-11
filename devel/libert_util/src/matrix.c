@@ -1512,27 +1512,30 @@ bool matrix_check_dims( const matrix_type * m , int rows , int columns) {
 double matrix_diag_std(const matrix_type * Sk,double mean)
 {
 
-  if (Sk->rows != Sk->columns) {
-    util_abort("%s: matrix is not square \n",__func__);
-    return 0;
-  }
-  else{
-    int nrows  = Sk->rows;
-    double std = 0;
-        int i;
+	if (Sk->rows != Sk->columns) {
+		util_abort("%s: matrix is not square \n",__func__);
+		return 0;
+	}
+	else{
+		int nrows  = Sk->rows;
+		double std = 0;
+		int i;
 
-    for ( i=0; i<nrows; i++) 
-      Sk->data[GET_INDEX(Sk , i , i)] =  Sk->data[GET_INDEX(Sk , i , i)] - mean; 
-    
-    for ( i=0; i<nrows; i++) {
-      double d = Sk->data[GET_INDEX(Sk , i , i)] - mean;
-      std += d*d;
-    }
+		// This seems wrong, coz
+		// 1) Sk is generally not used again outside of this function, so no need to change it.
+		// 2) The effect of subtracting the mean twice is not to center d, but to mirror it around 0.
+		for ( i=0; i<nrows; i++) 
+			Sk->data[GET_INDEX(Sk , i , i)] =  Sk->data[GET_INDEX(Sk , i , i)] - mean; 
 
-    
-    std = sqrt(std)/nrows;
-    return std;
-  }
+		for ( i=0; i<nrows; i++) {
+			double d = Sk->data[GET_INDEX(Sk , i , i)] - mean;
+			std += d*d;
+		}
+
+
+		std = sqrt(std)/nrows;
+		return std;
+	}
 }
 
 /**

@@ -106,7 +106,6 @@ static void dgemm_debug(const matrix_type *C , const matrix_type *A , const matr
 
    op(·) can either be unity or Transpose.
 */
-
 void matrix_dgemm(matrix_type *C , const matrix_type *A , const matrix_type * B , bool transA, bool transB , double alpha , double beta) {
   int m   = matrix_get_rows( C );
   int n   = matrix_get_columns( C );

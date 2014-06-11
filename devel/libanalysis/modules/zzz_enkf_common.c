@@ -33,6 +33,8 @@
 #include <zzz_enkf_common.h>
 
 
+// zzz_enkf_common_store_state(state , A ,ens_mask )
+// state = A (assignment to state from A)
 void zzz_enkf_common_store_state( matrix_type * state , const matrix_type * A , const bool_vector_type * ens_mask ) { 
   matrix_resize( state , matrix_get_rows( A ) , bool_vector_size( ens_mask ) , false);
   {
@@ -49,7 +51,8 @@ void zzz_enkf_common_store_state( matrix_type * state , const matrix_type * A , 
 }
 
 
-
+// zzz_enkf_common_recover_state(state , A ,ens_mask )
+// A = state (assignment to A from state)
 void zzz_enkf_common_recover_state( const matrix_type * state , matrix_type * A , const bool_vector_type * ens_mask ) { 
   const int ens_size = bool_vector_size( ens_mask );
   const int active_size = bool_vector_count_equal( ens_mask , true );
@@ -68,7 +71,7 @@ void zzz_enkf_common_recover_state( const matrix_type * state , matrix_type * A 
 }
 
 
-
+// Scale rows by the entries in the vector Csc
 void zzz_enkf_common_scaleA(matrix_type *A , const double * Csc, bool invert ){
   int nrows = matrix_get_rows(A);
   if (invert) {

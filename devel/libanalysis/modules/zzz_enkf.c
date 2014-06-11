@@ -103,13 +103,13 @@ struct zzz_enkf_data_struct {
   int       iteration_nr;          // Keep track of the outer iteration loop
   double    Sk;                    // Objective function value
   double    Std;                   // Standard Deviation of the Objective function
-  double  * Csc;
-  matrix_type *Am;
-  matrix_type *active_prior;
-  matrix_type *prior0;
-  matrix_type *state;
-  bool_vector_type * ens_mask;
-  bool use_prior;
+  double  * Csc;                   // Vector with scalings for non-dimensionalizing states
+  matrix_type *Am;                 // 
+  matrix_type *active_prior;       // m_l
+  matrix_type *prior0;             // m_0
+  matrix_type *state;              // 
+  bool_vector_type * ens_mask;     // 
+  bool use_prior;                  // Use exact/approximate scheme? Approximate scheme drops the "prior" term in the LM step.
 
   double    lambda;                 // parameter to control the setp length in Marquardt levenberg optimization 
   double    lambda0;
@@ -308,9 +308,35 @@ void zzz_enkf_data_free( void * arg ) {
 
 
 
-/** Actual intersting stuff **/
+
+// Notation
+/*
+ * NOTATION
+ *
+ * A, Acopy, data->state, data->prior0, data->active_prior
+ * These are all ensemble matrices holding the state at some stage of the iteration.
+ * Possible multiple use of notations => Case-by-case dependent.
+ *
+ * Variable name in code <-> D.Oliver notation     <-> Description
+ * -----------------------------------------------------------------------------------------------------------
+ * Am                    <-> A_m                   <-> Am = Um*Wm^(-1)
+ * Csc                   <-> C_sc^(1/2)            <-> State scalings. Note the square root.
+ * Dm (in init1__)       <-> Delta m               <-> Anomalies of active_prior wrt. its mean (row i scaled by 1/(Csc[i]*sqrt(N-1)))
+ * Dm (in initA__)       <-> Csc * Delta m         <-> Anomalies of A wrt. its mean (only scaled by 1/sqrt(N-1))
+ * Dk1 (in init2__)      <-> Delta m               <-> Anomailes of Acopy (row i scaled by 1/(Csc[i]*sqrt(N-1)))
+ * Dk (in init2__)       <-> Csc^(-1) * (m - m_pr) <-> Anomalies wrt. prior (as opposed to the mean; only scaled by Csc)
+ * dA1 (in initA__)      <-> delta m               <-> Ensemble updates coming from data mismatch
+ * dA2 (in init2__)      <-> delta m               <-> Ensemble updates coming from prior mismatch
+ *
+ * X1-X7, intermediate calculations in iterations. See D.Oliver algorithm
+*/
+
+// Just (pre)calculates data->Am = Um*Wm^(-1).
 static void zzz_enkf_init1__( zzz_enkf_data_type * data) {
-  
+	// Differentiate this routine from init2__, which actually calculates the prior mismatch update.
+	// This routine does not change any ensemble matrix.
+	// Um*Wm^(-1) are the scaled, truncated, right singular vectors of data->active_prior.
+
 
   int state_size    = matrix_get_rows( data->active_prior );
   int ens_size      = matrix_get_columns( data->active_prior );
@@ -323,15 +349,15 @@ static void zzz_enkf_init1__( zzz_enkf_data_type * data) {
 
   matrix_subtract_row_mean(Dm);
 
-
-  //This routine only computes the SVD of Ensemble State matrix  
-
   for (int i=0; i < state_size; i++){
     double sc = nsc / (data->Csc[i]);
     matrix_scale_row( Dm , i , sc);
   }
+
+	// Um Wm VmT = Dm; nsign1 = num of non-zero singular values.
   int nsign1 = enkf_linalg_svd_truncation(Dm , data->truncation , -1 , DGESVD_MIN_RETURN  , Wm , Um , VmT);
   
+	// Am = Um*Wm^(-1). I.e. scale *columns* of Um
   enkf_linalg_rml_enkfAm(Um, Wm, nsign1);
 
   data->Am = matrix_alloc_copy( Um );
@@ -341,6 +367,7 @@ static void zzz_enkf_init1__( zzz_enkf_data_type * data) {
   free(Wm);
 }
 
+// Creates state scaling matrix
 void zzz_enkf_init_Csc(zzz_enkf_data_type * data){
   int state_size = matrix_get_rows( data->active_prior );
   int ens_size   = matrix_get_columns( data->active_prior );
@@ -357,33 +384,40 @@ void zzz_enkf_init_Csc(zzz_enkf_data_type * data){
   }
 }
 
-
+// Calculates update from data mismatch (delta m_1). Also provides SVD for later use.
 static void zzz_enkf_initA__(zzz_enkf_data_type * data,  matrix_type * A , matrix_type * S ,  matrix_type * Cd ,  matrix_type * E ,  matrix_type * D , matrix_type * Udr, double * Wdr, matrix_type * VdTr) {
+// A : ensemble matrix
+// S : measured ensemble
+// Cd : inv(SampleCov of E)
+// E : perturbations for obs
+// D = dObs + E - S : Innovations (wrt pert. obs)
 
   int ens_size      = matrix_get_columns( S );
   double nsc        = 1/sqrt(ens_size-1);
   int nsign;
+
+	// SVD:
+	// tmp = diag_sqrt(Cd^(-1)) * centered(S) / sqrt(N-1) = Ud * Wd * Vd(T)
   {
     int nrobs         = matrix_get_rows( S );
     matrix_type *tmp  = matrix_alloc (nrobs, ens_size);
-    matrix_subtract_row_mean( S );   
-    matrix_inplace_diag_sqrt(Cd);
-    matrix_matmul(tmp , Cd , S );
-    matrix_scale(tmp , nsc);
+    matrix_subtract_row_mean( S );                        // Center S
+    matrix_inplace_diag_sqrt(Cd);                         // Assumes that Cd is diag!
+    matrix_matmul(tmp , Cd , S );                         //
+    matrix_scale(tmp , nsc);                              // 
   
-    // SVD(S)  = Ud * Wd * Vd(T), in this case:
-    // SVD(nsc^2*Cd*S)  = Ud * Wd * Vd(T)
     nsign = enkf_linalg_svd_truncation(tmp , data->truncation , -1 , DGESVD_MIN_RETURN  , Wdr , Udr , VdTr);
     matrix_free( tmp );
   }
   
   {
     matrix_type * X3  = matrix_alloc( ens_size, ens_size );
+		// X3
     {
       matrix_type * X1  = matrix_alloc( nsign, ens_size);
       matrix_type * X2  = matrix_alloc( nsign, ens_size );
       
-      
+			// See LM-EnRML algorithm in Oliver'2013 (Comp. Geo.)
       enkf_linalg_rml_enkfX1(X1, Udr ,D ,Cd );                         // X1 = Ud(T)*Cd(-1/2)*D   -- D= -(dk-d0)
       enkf_linalg_rml_enkfX2(X2, Wdr ,X1 ,data->lambda + 1 , nsign);   // X2 = ((a*Ipd)+Wd^2)^-1  * X1
       enkf_linalg_rml_enkfX3(X3, VdTr ,Wdr,X2, nsign);                 // X3 = Vd *Wd*X2
@@ -392,15 +426,16 @@ static void zzz_enkf_initA__(zzz_enkf_data_type * data,  matrix_type * A , matri
       matrix_free(X1);
     }
     
+		// Update A. Why is there no scaling here?
     {
       matrix_type * dA1 = matrix_alloc( matrix_get_rows(A) , ens_size);
       matrix_type * Dm = matrix_alloc_copy( A );
 
       matrix_subtract_row_mean( Dm );           /* Remove the mean from the ensemble of model parameters*/
-      matrix_scale(Dm, nsc);
+      matrix_scale(Dm, nsc);                    // /sqrt(N-1)
 
-      matrix_matmul(dA1, Dm , X3);
-      matrix_inplace_add(A,dA1);                // dA 
+      matrix_matmul(dA1, Dm , X3);              // 
+      matrix_inplace_add(A,dA1);                // Add the update into A 
 
       matrix_free(Dm);
       matrix_free(dA1);
@@ -410,8 +445,10 @@ static void zzz_enkf_initA__(zzz_enkf_data_type * data,  matrix_type * A , matri
   }
 }
 
+// Calculate prior mismatch update (delta m_2).
 void zzz_enkf_init2__( zzz_enkf_data_type * data, matrix_type *A, matrix_type *Acopy, double * Wdr, matrix_type * VdTr) {
-
+	// Distinguish from init1__ which only makes preparations, and is only called at iter=0
+	// Acopy : Copy of A. Possibly of an A that was rejected? See updateA()
 
   int state_size   = matrix_get_rows( Acopy );
   int ens_size     = matrix_get_columns( Acopy );
@@ -431,22 +468,29 @@ void zzz_enkf_init2__( zzz_enkf_data_type * data, matrix_type *A, matrix_type *A
   matrix_type * dA2 = matrix_alloc(state_size , ens_size);
   matrix_type * Dk1 = matrix_alloc_copy( Acopy );
   
+	// Dk = Csc^(-1) * (Acopy - Aprior)
+	// X4 = Am' * Dk
   {
     matrix_type * Dk = matrix_alloc_copy( Acopy );
     matrix_inplace_sub(Dk, Apr);
     zzz_enkf_common_scaleA(Dk , data->Csc , true);
-    matrix_dgemm(X4 , Am , Dk , true, false, 1.0, 0.0);
+    matrix_dgemm(X4 , Am , Dk , true, false, 1.0, 0.0); // X4 = Am' * Dk
     matrix_free(Dk);
   }
+	// X5 = Am * X4
   matrix_matmul(X5 , Am , X4);
-  
-  matrix_subtract_row_mean(Dk1);
-  zzz_enkf_common_scaleA(Dk1 , data->Csc , true);
-  matrix_scale(Dk1,nsc);
 
-  matrix_dgemm(X6, Dk1, X5, true, false, 1.0, 0.0);
+  // Dk1 = Csc^(-1)/sqrt(N-1) * Acopy*(I - 1/N*ones(m,N))
+  matrix_subtract_row_mean(Dk1);                  // Dk1 = Dk1 * (I - 1/N*ones(m,N))
+  zzz_enkf_common_scaleA(Dk1 , data->Csc , true); // Dk1 = Csc^(-1) * Dk1
+  matrix_scale(Dk1,nsc);                          // Dk1 = Dk1 / sqrt(N-1)
+	
+	// X6 = Dk1' * X5
+  matrix_dgemm(X6, Dk1, X5, true, false, 1.0, 0.0); 
+	// X7
   enkf_linalg_rml_enkfX7(X7, VdTr , Wdr , data->lambda + 1, X6);
   
+	// 
   zzz_enkf_common_scaleA(Dk1 , data->Csc , false);
   matrix_matmul(dA2 , Dk1 , X7);
   matrix_inplace_sub(A, dA2);
@@ -461,10 +505,10 @@ void zzz_enkf_init2__( zzz_enkf_data_type * data, matrix_type *A, matrix_type *A
   matrix_free(Dk1);
 }
 
-
+// Initialize state, prior0 and active_prior from A. Initialize lambda0, lambda. Call initA__, init1__
 static void zzz_enkf_updateA_iter0(zzz_enkf_data_type * data, matrix_type * A ,  matrix_type * S ,  matrix_type * R ,  matrix_type * dObs ,  matrix_type * E ,  matrix_type * D, matrix_type * Cd) {
         
-  matrix_type * Skm = matrix_alloc(matrix_get_columns(D),matrix_get_columns(D));
+	matrix_type * Skm = matrix_alloc(ens_size,ens_size);      // Mismatch
   int ens_size      = matrix_get_columns( S );
   int nrobs         = matrix_get_rows( S );
   int nrmin         = util_int_min( ens_size , nrobs); 
@@ -482,11 +526,14 @@ static void zzz_enkf_updateA_iter0(zzz_enkf_data_type * data, matrix_type * A , 
   else
     data->lambda = data->lambda0;
   
+	// state = A, prior0 = A, active_prior = prior0
   zzz_enkf_common_store_state( data->state  , A , data->ens_mask );
   zzz_enkf_common_store_state( data->prior0 , A , data->ens_mask );
   zzz_enkf_common_recover_state( data->prior0 , data->active_prior , data->ens_mask );
 
+	// Update from data mismatch
   zzz_enkf_initA__(data , A, S , Cd , E , D , Ud , Wd , VdT);
+	// Update from prior mismatch. This should be zero. So init1__ just prepares some matrices.
   if (data->use_prior) {
     zzz_enkf_init_Csc( data );
     zzz_enkf_init1__(data );
@@ -503,6 +550,7 @@ static void zzz_enkf_updateA_iter0(zzz_enkf_data_type * data, matrix_type * A , 
   free( Wd );
 }
 
+// Main routine. Controls the iterations. Called from analysis_module.c: analysis_module_updateA()
 void zzz_enkf_updateA(void * module_data ,  matrix_type * A ,  matrix_type * S ,  matrix_type * R ,  matrix_type * dObs ,  matrix_type * E ,  matrix_type * D) {
 // A : ensemble matrix
 // R : Obs error cov inv?
@@ -515,12 +563,12 @@ void zzz_enkf_updateA(void * module_data ,  matrix_type * A ,  matrix_type * S ,
   double  Std_new; // Std dev(Mismatch)
   zzz_enkf_data_type * data = zzz_enkf_data_safe_cast( module_data );
   int nrobs                 = matrix_get_rows( S );           // Num obs
-  int ens_size              = matrix_get_columns( S );        //
+  int ens_size              = matrix_get_columns( S );        // N
   double nsc                = 1/sqrt(ens_size-1);             // Scale factor
   matrix_type * Cd          = matrix_alloc( nrobs, nrobs );   // Cov(E), where E = measurement perturbations?
  
   
-  enkf_linalg_Covariance(Cd ,E ,nsc, nrobs); // 
+  enkf_linalg_Covariance(Cd ,E ,nsc, nrobs); // Cd = SampCov(E) (including (N-1) normalization)
   matrix_inv(Cd); // In-place inversion
 
   zzz_enkf_open_log_file(data);
@@ -555,7 +603,7 @@ void zzz_enkf_updateA(void * module_data ,  matrix_type * A ,  matrix_type * S ,
     matrix_type * Skm   = matrix_alloc(ens_size,ens_size);      // Mismatch
     matrix_type * Acopy = matrix_alloc_copy (A);                // Copy of A
     Sk_new              = enkf_linalg_data_mismatch(D,Cd,Skm);  // Skm = D'*inv(Cd)*D; Sk_new = trace(Skm)/N
-    Std_new             = matrix_diag_std(Skm,Sk_new);          // 
+    Std_new             = matrix_diag_std(Skm,Sk_new);          // Standard deviation of mismatches.
     
 		// Lambda = Normalized data mismatch (rounded)
     if (data->lambda_recalculate)
@@ -566,6 +614,7 @@ void zzz_enkf_updateA(void * module_data ,  matrix_type * A ,  matrix_type * S ,
 		// active_prior = prior0
     zzz_enkf_common_recover_state( data->prior0 , data->active_prior , data->ens_mask );
 
+		// Accept/Reject update? Lambda calculation.
     {
       bool mismatch_reduced = false;
       bool std_reduced = false;
@@ -577,32 +626,42 @@ void zzz_enkf_updateA(void * module_data ,  matrix_type * A ,  matrix_type * S ,
         std_reduced = true;
 
       if (data->log_stream){
-        zzz_enkf_log_line( data , "%-d-%-21d %-19.5f %-36.5f %-37.5f %-33.5f \n", data->iteration_nr, data->iteration_nr+1,  data->lambda, Sk_new, data->Sk, Std_new);
+        zzz_enkf_log_line( data , "\n%-d-%-4d %-7.3f %-7.3f %-7.3f %-7.3f \n", data->iteration_nr, data->iteration_nr+1,  data->lambda, Sk_new, data->Sk, Std_new);
       }
 
       if (mismatch_reduced) {
         /*
           Stop check: if ( (1- (Sk_new/data->Sk)) < .0001)  // check convergence ** model change norm has to be added in this!!
         */
-        if (std_reduced) 
-          data->lambda = data->lambda * data->lambda_reduce_factor;
 
-        zzz_enkf_common_store_state(data->state , A , data->ens_mask );
+				// Reduce lambda
+				if (std_reduced) 
+					data->lambda = data->lambda * data->lambda_reduce_factor;
 
-        data->Sk = Sk_new;
-        data->Std=Std_new;
-        data->iteration_nr++;
-      } else {
-        data->lambda = data->lambda * data->lambda_increase_factor;
-        zzz_enkf_common_recover_state( data->state , A , data->ens_mask );
-      }
-    }
+				// data->state = A
+				zzz_enkf_common_store_state(data->state , A , data->ens_mask );
 
+				data->Sk = Sk_new;
+				data->Std=Std_new;
+				data->iteration_nr++;
+			} else {
+				// Increase lambda
+				data->lambda = data->lambda * data->lambda_increase_factor;
+				// A = data->state
+				zzz_enkf_common_recover_state( data->state , A , data->ens_mask );
+			}
+		}
+
+		// Update from data mismatch
     zzz_enkf_initA__(data , A , S , Cd , E , D , Ud , Wd , VdT);
+
+		// Update from prior mismatch
     if (data->use_prior) {
       zzz_enkf_init_Csc( data );
       zzz_enkf_init2__(data , A , Acopy , Wd , VdT);
     }
+
+		//
     matrix_free(Acopy);
     matrix_free(Skm);
     matrix_free( Ud );
@@ -620,12 +679,13 @@ void zzz_enkf_updateA(void * module_data ,  matrix_type * A ,  matrix_type * S ,
   matrix_free(Cd);
 }
 
-
+// Called from analysis_module.c: analysis_module_init_update()
 void zzz_enkf_init_update(void * arg ,  const bool_vector_type * ens_mask ,  const matrix_type * S ,  const matrix_type * R ,  const matrix_type * dObs ,  const matrix_type * E ,  const matrix_type * D ) {
   
   zzz_enkf_data_type * module_data = zzz_enkf_data_safe_cast( arg );
   bool_vector_memcpy( module_data->ens_mask , ens_mask );
 }
+
 
 
 
