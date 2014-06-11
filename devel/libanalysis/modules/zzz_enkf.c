@@ -508,11 +508,11 @@ void zzz_enkf_init2__( zzz_enkf_data_type * data, matrix_type *A, matrix_type *A
 // Initialize state, prior0 and active_prior from A. Initialize lambda0, lambda. Call initA__, init1__
 static void zzz_enkf_updateA_iter0(zzz_enkf_data_type * data, matrix_type * A ,  matrix_type * S ,  matrix_type * R ,  matrix_type * dObs ,  matrix_type * E ,  matrix_type * D, matrix_type * Cd) {
         
-	matrix_type * Skm = matrix_alloc(ens_size,ens_size);      // Mismatch
   int ens_size      = matrix_get_columns( S );
   int nrobs         = matrix_get_rows( S );
   int nrmin         = util_int_min( ens_size , nrobs); 
   int state_size    = matrix_get_rows( A );
+	matrix_type * Skm = matrix_alloc(ens_size,ens_size);      // Mismatch
   matrix_type * Ud  = matrix_alloc( nrobs , nrmin    );    /* Left singular vectors.  */
   matrix_type * VdT = matrix_alloc( nrmin , ens_size );    /* Right singular vectors. */
   double * Wd       = util_calloc( nrmin , sizeof * Wd ); 
