@@ -100,6 +100,8 @@ static UTIL_SAFE_CAST_FUNCTION_CONST( std_enkf_data , STD_ENKF_TYPE_ID )
 static UTIL_SAFE_CAST_FUNCTION( std_enkf_data , STD_ENKF_TYPE_ID )
 
 
+
+
 double std_enkf_get_truncation( std_enkf_data_type * data ) {
   return data->truncation;
 }
@@ -122,6 +124,9 @@ void std_enkf_set_subspace_dimension( std_enkf_data_type * data , int subspace_d
 
 
 
+
+
+
 void * std_enkf_data_alloc( rng_type * rng) {
   std_enkf_data_type * data = util_malloc( sizeof * data );
   UTIL_TYPE_ID_INIT( data , STD_ENKF_TYPE_ID );
@@ -132,7 +137,6 @@ void * std_enkf_data_alloc( rng_type * rng) {
   return data;
 }
 
-
 void std_enkf_data_free( void * data ) { 
   free( data );
 }
@@ -140,14 +144,7 @@ void std_enkf_data_free( void * data ) {
 
 
 
-void std_enkf_initX__( matrix_type * X , 
-                       matrix_type * S , 
-                       matrix_type * R , 
-                       matrix_type * E , 
-                       matrix_type * D ,
-                       double truncation,
-                       int    ncomp,
-                       bool   bootstrap ) {
+void std_enkf_initX__( matrix_type * X ,  matrix_type * S ,  matrix_type * R ,  matrix_type * E ,  matrix_type * D , double truncation, int    ncomp, bool   bootstrap ) {
 
   int nrobs         = matrix_get_rows( S );
   int ens_size      = matrix_get_columns( S );
@@ -165,18 +162,7 @@ void std_enkf_initX__( matrix_type * X ,
   enkf_linalg_checkX( X , bootstrap );
 }
 
-
-
-
-
-void std_enkf_initX(void * module_data , 
-                    matrix_type * X , 
-                    matrix_type * A , 
-                    matrix_type * S , 
-                    matrix_type * R , 
-                    matrix_type * dObs , 
-                    matrix_type * E , 
-                    matrix_type * D) {
+void std_enkf_initX(void * module_data ,  matrix_type * X ,  matrix_type * A ,  matrix_type * S ,  matrix_type * R ,  matrix_type * dObs ,  matrix_type * E ,  matrix_type * D) {
 
 
   std_enkf_data_type * data = std_enkf_data_safe_cast( module_data );
@@ -208,7 +194,6 @@ bool std_enkf_set_double( void * arg , const char * var_name , double value) {
   }
 }
 
-
 bool std_enkf_set_int( void * arg , const char * var_name , int value) {
   std_enkf_data_type * module_data = std_enkf_data_safe_cast( arg );
   {
@@ -222,7 +207,6 @@ bool std_enkf_set_int( void * arg , const char * var_name , int value) {
     return name_recognized;
   }
 }
-
 
 long std_enkf_get_options( void * arg , long flag ) {
   std_enkf_data_type * module_data = std_enkf_data_safe_cast( arg );
@@ -263,12 +247,12 @@ int std_enkf_get_int( const void * arg, const char * var_name) {
 }
 
 
+
+
 /**
    gcc -fpic -c <object_file> -I??  <src_file>
    gcc -shared -o <lib_file> <object_files>
 */
-
-
 
 #ifdef INTERNAL_LINK
 #define SYMBOL_TABLE std_enkf_symbol_table

@@ -1147,7 +1147,7 @@ static void enkf_main_analysis_update( enkf_main_type * enkf_main ,
   matrix_type * dObs    = obs_data_allocdObs( obs_data , active_size );
   matrix_type * A       = matrix_alloc( matrix_start_size , ens_size );
   matrix_type * E       = NULL;
-  matrix_type * D       = NULL;
+  matrix_type * D       = NULL; 
   matrix_type * localA  = NULL;
   int_vector_type * iens_active_index = bool_vector_alloc_active_index_list(ens_mask , -1);
 
@@ -1173,7 +1173,12 @@ static void enkf_main_analysis_update( enkf_main_type * enkf_main ,
 
   /*****************************************************************/
   
-  analysis_module_init_update( module , ens_mask , S , R , dObs , E , D );
+	fprintf(stdout,"\n\n***********0000000000000***********");
+	fprintf(stdout,"\nS : m: %d, n: %d", matrix_get_rows(S), matrix_get_columns(S));
+	fprintf(stdout,"\nS : %f", matrix_iget_safe(S, matrix_get_rows(S)-1,matrix_get_columns(S)-1));
+
+	analysis_module_init_update( module , ens_mask , S , R , dObs , E , D );
+
   {
     hash_iter_type * dataset_iter = local_ministep_alloc_dataset_iter( ministep );
     enkf_fs_type * src_fs = enkf_main_get_fs( enkf_main );
@@ -1212,25 +1217,37 @@ static void enkf_main_analysis_update( enkf_main_type * enkf_main ,
       double_vector_free( singular_values );
     }
     
-    if (localA == NULL)
-      analysis_module_initX( module , X , NULL , S , R , dObs , E , D );
+    if (localA == NULL){
+				analysis_module_initX( module , X , NULL , S , R , dObs , E , D );
+				fprintf(stdout,"\n\n***********AAAAAA***********\n");
+				fprintf(stdout,"X : %f\n", matrix_iget_safe(X, 1,1));
+				fprintf(stdout,"X : %f\n", matrix_iget_safe(X, matrix_get_rows(X)-1,matrix_get_columns(X)-1));
+		}
 
+		fprintf(stdout,"\n\n***********BBBBBB***********\n");
+	  matrix_pretty_print(X , "X" , "%.2f");
 
     while (!hash_iter_is_complete( dataset_iter )) {
       const char * dataset_name = hash_iter_get_next_key( dataset_iter );
       const local_dataset_type * dataset = local_ministep_get_dataset( ministep , dataset_name );
+
       if (local_dataset_get_size( dataset )) {
         int * active_size = util_calloc( local_dataset_get_size( dataset ) , sizeof * active_size );
         int * row_offset  = util_calloc( local_dataset_get_size( dataset ) , sizeof * row_offset  );
         
         enkf_main_serialize_dataset( enkf_main , dataset , step2 ,  use_count , active_size , row_offset , tp , serialize_info);
 
+
         if (analysis_module_check_option( module , ANALYSIS_UPDATE_A)){
           if (analysis_module_check_option( module , ANALYSIS_ITERABLE)){
             analysis_module_updateA( module , localA , S , R , dObs , E , D );
+						fprintf(stdout,"\n\n***********HHHHHHHHHH***********\n");
           }
-          else
+          else {
             analysis_module_updateA( module , localA , S , R , dObs , E , D );
+					}
+
+					fprintf(stdout,"\n\n***********KKKKKKKKKKKK***********\n");
         }
         else {
           if (analysis_module_check_option( module , ANALYSIS_USE_A)){
@@ -1864,6 +1881,10 @@ bool enkf_main_run_simple_step(enkf_main_type * enkf_main , bool_vector_type * i
 
 void enkf_main_run_smoother(enkf_main_type * enkf_main , const char * target_fs_name , bool_vector_type * iactive , int iter , bool rerun) {
   analysis_config_type * analysis_config = enkf_main_get_analysis_config( enkf_main );
+
+	fprintf(stdout,"Current analysis module:%s",analysis_config_get_active_module_name( analysis_config ));
+	fprintf(stderr,"Current analysis module:%s",analysis_config_get_active_module_name( analysis_config ));
+
   if (!analysis_config_get_module_option( analysis_config , ANALYSIS_ITERABLE)) {
     if (enkf_main_run_simple_step( enkf_main , iactive , INIT_CONDITIONAL, iter))
       enkf_main_run_post_workflow(enkf_main);

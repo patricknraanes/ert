@@ -266,6 +266,7 @@ void analysis_module_updateA(analysis_module_type * module ,
                              matrix_type * E , 
                              matrix_type * D ) {
 
+		fprintf(stdout,"\n\n***********IIIIIIIIIIIIII***********\n");
   module->updateA(module->module_data , A , S , R , dObs , E , D );
 }
 
