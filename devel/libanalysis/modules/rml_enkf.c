@@ -376,6 +376,19 @@ void rml_enkf_data_free( void * arg ) {
 */
 
 
+//**********************************************
+// Potential issues
+//**********************************************
+/* More details in emails to Matthew
+ * - Why is the scaling either 0.05 or 1? And why is the desideratum whether the ensemble
+ *   mean (column mean) of the prior is of magnitude bigger than one? See init_Csc(). 
+ * - Why is Cd always calculated as the empirical obs covar from E 
+ *   even though a theoretical R may be available? See updateA()
+ * - The function matrix_inplace_diag_sqrt() is applied to Cd to obtain the square root
+ *   of the diagonal elems, but what it really should do is obtain the *matrix* square root of Cd.
+ *   Is this Ok? Only if Cd is actually diagonal, or applied as such. See updateA__()
+*/
+
 
 
 //**********************************************
