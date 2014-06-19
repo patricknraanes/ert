@@ -64,8 +64,8 @@ typedef struct rml_enkf_data_struct rml_enkf_data_type;
 #define DEFAULT_LOG_FILE               "rml_enkf.out"
 #define DEFAULT_CLEAR_LOG              true
 
-#define DEFAULT_USE_AMDA                false
-#define USE_AMDA                     "USE_AMDA"
+#define DEFAULT_USE_AMDA             false
+#define USE_AMDA_KEY                 "USE_AMDA"
  
 
 #define  USE_PRIOR_KEY               "USE_PRIOR"
@@ -670,7 +670,7 @@ void rml_enkf_updateA(void * module_data, matrix_type * A, matrix_type * S, matr
   if (data->iteration_nr == 0) {
 		// IF ITERATION 0
     rml_enkf_updateA_iter0(data , A , S , R , dObs , E , D , Cd);
-		printf("\nIter 0, use_amda : %d", data->use_prior);
+		printf("\nIter 0, use_amda : %d", data->use_amda);
     data->iteration_nr++;
   } else {
 		// IF ITERATION 1, 2, ...
@@ -683,7 +683,7 @@ void rml_enkf_updateA(void * module_data, matrix_type * A, matrix_type * S, matr
     Std_new             = matrix_diag_std(Skm,Sk_new);          // Standard deviation of mismatches.
 
 
-		printf("\nIter 1,2,..., use_amda : %d", data->use_prior);
+		printf("\nIter 1,2,..., use_amda : %d", data->use_amda);
 
 		// Lambda = Normalized data mismatch (rounded)
     if (data->lambda_recalculate)
@@ -802,7 +802,7 @@ bool rml_enkf_set_bool( void * arg , const char * var_name , bool value) {
       rml_enkf_set_clear_log( module_data , value );
     else if (strcmp( var_name , LAMBDA_RECALCULATE_KEY) == 0)
       rml_enkf_set_lambda_recalculate( module_data , value );
-    else if (strcmp( var_name , USE_AMDA) == 0)
+    else if (strcmp( var_name , USE_AMDA_KEY) == 0)
       rml_enkf_set_use_amda( module_data , value );
     else
       name_recognized = false;
@@ -820,7 +820,7 @@ bool rml_enkf_get_bool( const void * arg, const char * var_name) {
       return module_data->clear_log;
     else if (strcmp(var_name , LAMBDA_RECALCULATE_KEY) == 0) 
       return module_data->lambda_recalculate;
-    else if (strcmp(var_name , USE_AMDA) == 0) 
+    else if (strcmp(var_name , USE_AMDA_KEY) == 0) 
       return module_data->use_amda;
     else
        return false;
@@ -911,7 +911,7 @@ bool rml_enkf_has_var( const void * arg, const char * var_name) {
       return true;
     else if (strcmp(var_name , CLEAR_LOG_KEY) == 0)
       return true;
-    else if (strcmp(var_name , USE_AMDA) == 0)
+    else if (strcmp(var_name , USE_AMDA_KEY) == 0)
       return true;
     else
       return false;
