@@ -376,6 +376,8 @@ void rml_enkf_data_free( void * arg ) {
 */
 
 
+
+
 //**********************************************
 // Potential issues
 //**********************************************
@@ -631,6 +633,17 @@ void rml_enkf_updateA(void * module_data, matrix_type * A, matrix_type * S, matr
 // dObs: observed data
 // E : perturbations for obs
 // D = dObs + E - S : Innovations (wrt pert. obs)
+
+
+// The MDA update is simply the delta m_1 part of the RML update, with a
+// specific value of lambda that can be calculated from alpha. This means
+// that there's no part of the MDA update that comes from a "prior mismatch"
+// (delta m_2). The equivalence of the update formulae is thanks to LM-EnRML's
+// Hessian approximation (replacing the prior covar with the current iterate
+// covar). Also, the adaptive MDA does not reject updates based on objective
+// function improvement, but just on a measure of how adventorous (as opposed
+// to careful) the step is. Therefore it does not need to run the forward model
+// again to evaluate the previous update!
 
 
 
