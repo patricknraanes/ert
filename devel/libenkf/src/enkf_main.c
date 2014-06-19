@@ -1961,7 +1961,7 @@ void enkf_main_run_iterated_ES(enkf_main_type * enkf_main, int num_iterations_to
       enkf_main_run_simulation_and_postworkflow(enkf_main, current_iteration, iactive);
     }
 
-    { // Iteration 1 - num_iterations [iteration 1, num iterations]
+    { // Iteration 1 --> num_iterations
       int num_retries_per_iteration = analysis_iter_config_get_num_retries_per_iteration(iter_config);
       int num_tries     = 0;
       current_iteration = 1;

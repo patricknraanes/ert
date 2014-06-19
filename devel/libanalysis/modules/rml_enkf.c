@@ -644,6 +644,9 @@ void rml_enkf_updateA(void * module_data, matrix_type * A, matrix_type * S, matr
 // function improvement, but just on a measure of how adventorous (as opposed
 // to careful) the step is. Therefore it does not need to run the forward model
 // again to evaluate the previous update!
+// Note: lambda = alpha - 1.
+// default: alpha_0 = 0.25 * Sk/p
+// If condition fails, multiply alpha with LAMBDA_INCREASE_FACTOR. 
 
 
 
