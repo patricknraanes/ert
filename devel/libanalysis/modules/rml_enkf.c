@@ -65,7 +65,9 @@ typedef struct rml_enkf_data_struct rml_enkf_data_type;
 #define DEFAULT_CLEAR_LOG              true
 
 #define DEFAULT_USE_AMDA             false
+#define DEFAULT_RHO                  0.2
 #define USE_AMDA_KEY                 "USE_AMDA"
+#define RHO_KEY                      "RHO"
  
 
 #define  USE_PRIOR_KEY               "USE_PRIOR"
