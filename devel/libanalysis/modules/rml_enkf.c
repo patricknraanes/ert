@@ -65,7 +65,9 @@ typedef struct rml_enkf_data_struct rml_enkf_data_type;
 #define DEFAULT_CLEAR_LOG              true
 
 #define DEFAULT_USE_AMDA             false
+#define DEFAULT_RHO                  0.2
 #define USE_AMDA_KEY                 "USE_AMDA"
+#define RHO_KEY                      "RHO"
  
 
 #define  USE_PRIOR_KEY               "USE_PRIOR"
@@ -122,6 +124,7 @@ struct rml_enkf_data_struct {
   bool use_prior;                  // Use exact/approximate scheme? Approximate scheme drops the "prior" term in the LM step.
 
 	bool use_amda;
+	double rho;
 
   double    lambda;                 // parameter to control the setp length in Marquardt levenberg optimization 
   double    lambda0;
@@ -192,6 +195,14 @@ void rml_enkf_set_lambda_reduce_factor( rml_enkf_data_type * data , double reduc
 
 double rml_enkf_get_lambda_reduce_factor( const rml_enkf_data_type * data ) {
   return data->lambda_reduce_factor;
+}
+
+void rml_enkf_set_rho( rml_enkf_data_type * data , double rho) {
+  data->rho = rho;
+}
+
+double rml_enkf_get_rho( const rml_enkf_data_type * data ) {
+  return data->rho;
 }
 
 bool rml_enkf_get_use_prior( const rml_enkf_data_type * data ) {
@@ -842,6 +853,8 @@ bool rml_enkf_set_double( void * arg , const char * var_name , double value) {
       rml_enkf_set_lambda0( module_data , value );
     else if (strcmp( var_name , LAMBDA_MIN_KEY) == 0)
       rml_enkf_set_lambda_min( module_data , value );
+    else if (strcmp( var_name , RHO_KEY) == 0)
+      rml_enkf_set_rho( module_data , value );
     else
       name_recognized = false;
 
@@ -862,6 +875,8 @@ double rml_enkf_get_double( const void * arg, const char * var_name) {
       return module_data->lambda_min;
     if (strcmp(var_name , ENKF_TRUNCATION_KEY_) == 0)
       return module_data->truncation;
+    if (strcmp(var_name , RHO_KEY) == 0)
+      return module_data->rho;
     else
       return -1;
   }
@@ -912,6 +927,8 @@ bool rml_enkf_has_var( const void * arg, const char * var_name) {
     else if (strcmp(var_name , CLEAR_LOG_KEY) == 0)
       return true;
     else if (strcmp(var_name , USE_AMDA_KEY) == 0)
+      return true;
+    else if (strcmp(var_name , RHO_KEY) == 0)
       return true;
     else
       return false;
