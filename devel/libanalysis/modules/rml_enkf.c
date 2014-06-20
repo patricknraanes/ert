@@ -682,6 +682,7 @@ void rml_enkf_updateA(void * module_data, matrix_type * A, matrix_type * S, matr
 		// IF ITERATION 0
     rml_enkf_updateA_iter0(data , A , S , R , dObs , E , D , Cd);
 		printf("\nIter 0, use_amda : %d", data->use_amda);
+		printf("\nIter 0, rho : %f", data->rho);
     data->iteration_nr++;
   } else {
 		// IF ITERATION 1, 2, ...
@@ -695,6 +696,7 @@ void rml_enkf_updateA(void * module_data, matrix_type * A, matrix_type * S, matr
 
 
 		printf("\nIter 1,2,..., use_amda : %d", data->use_amda);
+		printf("\nIter 1,2,..., rho : %f", data->rho);
 
 		// Lambda = Normalized data mismatch (rounded)
     if (data->lambda_recalculate)
